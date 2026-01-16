@@ -42,6 +42,12 @@ EXPORT_LLM = os.getenv("EXPORT_LLM", "false").lower() == "true"  # Export for LL
 OUTPUT_FORMAT = os.getenv("OUTPUT_FORMAT", "json")  # json or txt
 OUTPUT_FILE = os.getenv("OUTPUT_FILE", str(DATA_DIR / "shopify_community_threads.json"))
 
+# Browser settings (for SPA crawling)
+USE_BROWSER = os.getenv("USE_BROWSER", "true").lower() == "true"  # Use browser for SPA
+BROWSER_HEADLESS = os.getenv("BROWSER_HEADLESS", "true").lower() == "true"  # Run browser in headless mode
+BROWSER_WAIT_TIME = int(os.getenv("BROWSER_WAIT_TIME", "5"))  # Wait time for page to load (seconds)
+BROWSER_IMPLICIT_WAIT = int(os.getenv("BROWSER_IMPLICIT_WAIT", "10"))  # Implicit wait time (seconds)
+
 # Logging settings
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FILE = LOGS_DIR / "crawler.log"

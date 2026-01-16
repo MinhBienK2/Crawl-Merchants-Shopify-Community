@@ -159,8 +159,8 @@ class ShopifyCommunityParser:
             post_elements = soup.find_all('div', class_='topic-post') or \
                 soup.select('.topic-post')
             if not post_elements:
-                print("no post elements")
-                return []
+                logger.warning("no post elements found")
+                return {'posts': []}
 
             for idx, post_element in enumerate(post_elements, 1):
                 post_data = self._extract_post_info(post_element, idx, thread_url)
@@ -170,7 +170,7 @@ class ShopifyCommunityParser:
         except Exception as e:
             logger.error(f"Error parsing thread detail: {e}")
         
-        return topic_posts
+        return {'posts': topic_posts}
 
     
     
