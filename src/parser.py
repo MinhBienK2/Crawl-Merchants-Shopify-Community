@@ -83,25 +83,17 @@ class ShopifyCommunityParser:
             else:
                 return None
             
-            # Extract author
-            author_elem = element.find('a', class_='poster') or \
-                         element.find('span', class_='poster') or \
-                         element.select_one('.poster a')
-            if author_elem:
-                thread_data['author'] = author_elem.get_text(strip=True)
-            
             # Extract post count
-            post_count_elem = element.find('span', class_='posts') or \
+            replies_count_elem = element.find('span', class_='posts') or \
                             element.select_one('.posts, .post-count')
-            if post_count_elem:
+            if replies_count_elem:
                 try:
-                    thread_data['post_count'] = int(post_count_elem.get_text(strip=True))
+                    thread_data['replies'] = int(replies_count_elem.get_text(strip=True))
                 except (ValueError, AttributeError):
-                    thread_data['post_count'] = 0
+                    thread_data['replies'] = 0
             
             # Extract views
-            views_elem = element.find('span', class_='views') or \
-                        element.select_one('.views, .view-count')
+            views_elem = element.find('span', class_='views')
             if views_elem:
                 try:
                     thread_data['views'] = int(views_elem.get_text(strip=True))
@@ -109,20 +101,27 @@ class ShopifyCommunityParser:
                     thread_data['views'] = 0
             
             # Extract last activity
-            last_activity = element.find('span', class_='last-activity') or \
-                          element.select_one('.last-activity, .relative-date')
+            last_activity = element.find('a', class_='post-activity') or \
+                        element.select_one('.activity, .post-activity')
             if last_activity:
                 thread_data['last_activity'] = last_activity.get_text(strip=True)
             
+            # badge-category
+            badge_category = element.find('span', class_='badge-category') or \
+                        element.select_one('.badge-category, .badge-category__name')
+            if badge_category:
+                thread_data['category'] = badge_category.get_text(strip=True)
+
             # Extract category/tags
             tags = []
-            tag_elements = element.find_all('a', class_='badge') or \
-                          element.select('.badge, .tag')
-            for tag_elem in tag_elements:
-                tag_text = tag_elem.get_text(strip=True)
-                if tag_text:
-                    tags.append(tag_text)
-            thread_data['tags'] = tags
+            tag_elements = element.find_all('a', class_='discourse-tag') or \
+                        element.select_one('.discourse-tag')
+            if tag_elements:
+                for tag_elem in tag_elements:
+                    tag_text = tag_elem.get_text(strip=True)
+                    if tag_text:
+                        tags.append(tag_text)
+                thread_data['tags'] = tags
             
             return thread_data
             
@@ -145,117 +144,79 @@ class ShopifyCommunityParser:
             parts = url.split('/')
             if 't' in parts:
                 idx = parts.index('t')
-                if idx + 1 < len(parts):
-                    return parts[idx + 1]
+                if idx + 2 < len(parts):
+                    return f"{parts[idx + 1]}/{parts[idx + 2]}"
         except Exception:
             pass
         return None
-    
+
     def parse_thread_detail(self, html: str, thread_url: str) -> Dict:
-        """
-        Parse detailed thread content including all posts
-        
-        Args:
-            html: HTML content of the thread page
-            thread_url: URL of the thread
-            
-        Returns:
-            Dictionary with complete thread data including all posts
-        """
         soup = BeautifulSoup(html, 'lxml')
-        thread_data = {
-            'url': thread_url,
-            'posts': []
-        }
+        topic_posts = []
         
         try:
-            # Extract thread title
-            title_elem = soup.find('h1', class_='fancy-title') or \
-                        soup.find('h1') or \
-                        soup.select_one('h1.title, .topic-title h1')
-            if title_elem:
-                thread_data['title'] = title_elem.get_text(strip=True)
-            
-            # Extract all posts
-            post_elements = soup.find_all('article', class_='post') or \
-                          soup.find_all('div', class_='post') or \
-                          soup.select('.post, article[data-post-id]')
-            
+            # find post container
+            post_elements = soup.find_all('div', class_='topic-post') or \
+                soup.select('.topic-post')
             if not post_elements:
-                # Try alternative selectors
-                post_elements = soup.select('.topic-post, .post-wrapper')
-            
-            logger.debug(f"Found {len(post_elements)} posts in thread")
-            
-            for idx, post_elem in enumerate(post_elements):
-                post_data = self._extract_post_info(post_elem, idx)
+                print("no post elements")
+                return []
+
+            for idx, post_element in enumerate(post_elements, 1):
+                post_data = self._extract_post_info(post_element, idx, thread_url)
                 if post_data:
-                    thread_data['posts'].append(post_data)
-            
-            # Extract metadata
-            thread_data['total_posts'] = len(thread_data['posts'])
+                    topic_posts.append(post_data)
             
         except Exception as e:
             logger.error(f"Error parsing thread detail: {e}")
         
-        return thread_data
+        return topic_posts
+
     
-    def _extract_post_info(self, element, post_number: int) -> Optional[Dict]:
-        """
-        Extract information from a single post element
-        
-        Args:
-            element: BeautifulSoup element containing post info
-            post_number: Post number in the thread (0-indexed)
-            
-        Returns:
-            Dictionary with post information or None
-        """
+    
+    def _extract_post_info(self, element, idx: int, thread_url: str) -> Optional[Dict]:
         try:
-            post_data = {
-                'post_number': post_number + 1,
-                'is_original_post': post_number == 0
-            }
-            
-            # Extract post ID
-            post_id = element.get('data-post-id') or \
-                     element.get('id', '').replace('post_', '')
-            if post_id:
-                post_data['post_id'] = post_id
-            
-            # Extract author
-            author_elem = element.find('a', class_='poster') or \
-                        element.select_one('.poster a, .username a')
+            post_info = {}
+            print("element post detail", element)
+            post_info['post_id'] = idx
+            post_info['url'] = f"{thread_url}/{idx}"
+
+            # extract author
+            author_elem = element.find('span', class_='username') or \
+                        element.select_one('.username')
             if author_elem:
-                post_data['author'] = author_elem.get_text(strip=True)
-                post_data['author_url'] = urljoin(self.base_url, author_elem.get('href', ''))
+                post_info['author'] = author_elem.get_text(strip=True)
+
+            # extract user title
+            user_title_elem = element.find('span', class_='user-title') or \
+                        element.select_one('.user-title')
+            if user_title_elem:
+                post_info['user_title'] = user_title_elem.get_text(strip=True)
             
-            # Extract post content
-            content_elem = element.find('div', class_='post-content') or \
-                          element.select_one('.post-content, .cooked, .post-body')
+            # extract content
+            content_elem = element.find('div', class_='post-body') or \
+                        element.select_one('.post-body, .post-content')
             if content_elem:
-                # Get text content
-                post_data['content'] = content_elem.get_text(separator='\n', strip=True)
-                # Also keep HTML for potential future use
-                post_data['content_html'] = str(content_elem)
-            
-            # Extract timestamp
-            time_elem = element.find('time') or \
-                       element.select_one('time, .post-date, .relative-date')
-            if time_elem:
-                post_data['timestamp'] = time_elem.get('datetime') or \
-                                       time_elem.get_text(strip=True)
-            
-            # Extract likes/reactions
-            likes_elem = element.find('span', class_='like-count') or \
-                        element.select_one('.like-count, .reactions-count')
-            if likes_elem:
-                try:
-                    post_data['likes'] = int(likes_elem.get_text(strip=True))
-                except (ValueError, AttributeError):
-                    post_data['likes'] = 0
-            
-            return post_data if 'content' in post_data else None
+                post_info['content'] = content_elem.get_text(strip=True)
+
+            # extract post date
+            post_date_elem = element.find('a', class_='post-date') or \
+                        element.select_one('.post-date')
+            if post_date_elem:
+                post_info['post_date'] = post_date_elem.get_text(strip=True)
+
+            # extract content
+            content_elem = element.find('div', class_='cooked') or \
+                        element.select_one('.cooked')
+            if content_elem:
+                post_info['content'] = content_elem.get_text(strip=True)
+
+            # solved by post_id
+            accepted_answer_ele = element.find('aside', class_='accepted-answer accepted-answer--has-excerpt')
+            if accepted_answer_ele:
+                post_info['solved_by_post_id'] = accepted_answer_ele.get('data-post')
+
+            return post_info
             
         except Exception as e:
             logger.error(f"Error extracting post info: {e}")
@@ -278,7 +239,7 @@ class ShopifyCommunityParser:
             next_link = soup.find('a', class_='next') or \
                        soup.find('a', rel='next') or \
                        soup.select_one('a.next, .pagination a.next')
-            
+
             if next_link and next_link.get('href'):
                 return urljoin(self.base_url, next_link.get('href'))
             

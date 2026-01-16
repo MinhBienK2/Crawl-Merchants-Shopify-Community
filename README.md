@@ -7,6 +7,7 @@
 ## 📋 Mục đích
 
 Công cụ này giúp bạn:
+
 - Crawl tất cả các threads từ một section của Shopify Community
 - Lưu dữ liệu dưới dạng JSON hoặc text
 - Export dữ liệu ở định dạng tối ưu cho LLM analysis
@@ -70,29 +71,49 @@ uv sync
 uv pip install -r requirements.txt
 ```
 
-### 4. Chạy ứng dụng
+### 4. Cấu hình (Quan trọng!)
 
 ```bash
-# Cách 1: Sử dụng uv (khuyến nghị - tự động dùng virtual environment)
+# Copy file .env.example thành .env
+cp .env.example .env
+
+# Hoặc trên Windows
+copy .env.example .env
+```
+
+Sau đó chỉnh sửa file `.env` để cấu hình crawler:
+
+- `FULL_URL`: URL của trang community cần crawl
+- `MAX_THREADS`: Số lượng threads tối đa (0 = không giới hạn)
+- `MAX_PAGES`: Số trang tối đa (0 = không giới hạn)
+- `LIST_ONLY`: Chỉ crawl danh sách, không crawl nội dung chi tiết
+- `EXPORT_LLM`: Tự động export cho LLM sau khi crawl
+- Và các settings khác...
+
+### 5. Chạy ứng dụng
+
+```bash
+# Đơn giản chỉ cần chạy (tất cả config từ .env)
 uv run python main.py
 
-# Cách 2: Sử dụng Makefile (Linux/Mac)
+# Hoặc với Makefile (Linux/Mac)
 make run
 
-# Cách 3: Activate virtual environment thủ công
+# Hoặc activate virtual environment thủ công
 # Windows
 .venv\Scripts\activate
 
 # Linux/Mac
 source .venv/bin/activate
 
-# Sau đó chạy bình thường
+# Sau đó chạy
 python main.py
 ```
 
 ### 5. Sử dụng Makefile (Linux/Mac) hoặc Scripts (Windows)
 
 **Linux/Mac:**
+
 ```bash
 make help          # Xem tất cả commands
 make setup         # Cài đặt dependencies
@@ -102,6 +123,7 @@ make clean         # Xóa cache files
 ```
 
 **Windows:**
+
 ```powershell
 # Chạy setup script
 .\scripts\setup.ps1
@@ -113,58 +135,57 @@ uv run python main.py
 
 ## 💻 Sử dụng
 
-### Crawl tất cả threads (mặc định)
+### Cách sử dụng đơn giản
+
+Tất cả cấu hình được đặt trong file `.env`. Chỉ cần:
+
+1. **Chỉnh sửa file `.env`** với các settings bạn muốn
+2. **Chạy lệnh đơn giản:**
 
 ```bash
-# Với uv (khuyến nghị - tự động dùng virtual environment)
 uv run python main.py
-
-# Hoặc sau khi activate virtual environment
-python main.py
 ```
 
-### Crawl với giới hạn số lượng threads
+### Ví dụ cấu hình trong .env
 
-```bash
-# Chỉ crawl 50 threads đầu tiên
-uv run python main.py --max-threads 50
+**Crawl tất cả threads:**
+
+```env
+MAX_THREADS=0
+MAX_PAGES=0
+LIST_ONLY=false
 ```
 
-### Crawl với giới hạn số trang
+**Crawl giới hạn 50 threads:**
 
-```bash
-# Chỉ crawl 3 trang đầu tiên
-uv run python main.py --max-pages 3
+```env
+MAX_THREADS=50
+MAX_PAGES=0
+LIST_ONLY=false
 ```
 
-### Chỉ crawl danh sách threads (không crawl nội dung chi tiết)
+**Chỉ crawl danh sách (không crawl nội dung):**
 
-```bash
-uv run python main.py --list-only
+```env
+MAX_THREADS=0
+MAX_PAGES=0
+LIST_ONLY=true
 ```
 
-### Chỉ định file output tùy chỉnh
+**Crawl và tự động export cho LLM:**
 
-```bash
-uv run python main.py --output data/my_custom_output.json
+```env
+MAX_THREADS=100
+MAX_PAGES=5
+EXPORT_LLM=true
 ```
 
-### Export dữ liệu cho LLM
+**Crawl từ URL khác:**
 
-```bash
-uv run python main.py --export-llm
-```
-
-### Crawl từ URL khác
-
-```bash
-uv run python main.py --url "https://community.shopify.com/c/jp/13"
-```
-
-### Kết hợp các options
-
-```bash
-uv run python main.py --max-threads 100 --max-pages 5 --export-llm --format json
+```env
+FULL_URL=https://community.shopify.com/c/jp/13
+MAX_THREADS=0
+MAX_PAGES=0
 ```
 
 ## 🔧 Quản lý Dependencies với uv
@@ -244,12 +265,20 @@ Dữ liệu được format dưới dạng text dễ đọc, phù hợp cho LLM 
 
 ## ⚙️ Cấu hình
 
-Chỉnh sửa file `config/config.py` để thay đổi các settings:
+Tất cả cấu hình được đặt trong file `.env`. Xem file `.env.example` để biết tất cả các options có sẵn.
 
-- `REQUEST_DELAY`: Thời gian delay giữa các requests (mặc định: 1.0 giây)
-- `REQUEST_TIMEOUT`: Timeout cho mỗi request (mặc định: 30 giây)
-- `MAX_RETRIES`: Số lần retry khi request thất bại (mặc định: 3)
+**Các settings chính:**
+
+- `FULL_URL`: URL của trang community cần crawl
+- `MAX_THREADS`: Số lượng threads tối đa (0 = không giới hạn)
+- `MAX_PAGES`: Số trang tối đa (0 = không giới hạn)
+- `LIST_ONLY`: Chỉ crawl danh sách, không crawl nội dung (true/false)
+- `EXPORT_LLM`: Tự động export cho LLM sau khi crawl (true/false)
+- `REQUEST_DELAY`: Thời gian delay giữa các requests (giây)
+- `REQUEST_TIMEOUT`: Timeout cho mỗi request (giây)
+- `MAX_RETRIES`: Số lần retry khi request thất bại
 - `OUTPUT_FORMAT`: Định dạng output (json hoặc txt)
+- `OUTPUT_FILE`: Đường dẫn file output
 - `LOG_LEVEL`: Mức độ logging (DEBUG, INFO, WARNING, ERROR)
 
 ## 📝 Logging
@@ -308,4 +337,3 @@ MIT License
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-

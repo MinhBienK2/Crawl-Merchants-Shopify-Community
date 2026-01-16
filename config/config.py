@@ -1,5 +1,6 @@
 """
 Configuration settings for Shopify Community Crawler
+All settings can be configured via .env file
 """
 import os
 from pathlib import Path
@@ -18,19 +19,28 @@ DATA_DIR.mkdir(exist_ok=True)
 LOGS_DIR.mkdir(exist_ok=True)
 
 # Shopify Community settings
-BASE_URL = "https://community.shopify.com"
-COMMUNITY_PATH = "/c/jp/13"
+BASE_URL = os.getenv("BASE_URL", "https://community.shopify.com")
+COMMUNITY_PATH = os.getenv("COMMUNITY_PATH", "/c/jp/13")
 FULL_URL = f"{BASE_URL}{COMMUNITY_PATH}"
 
 # Crawler settings
-REQUEST_DELAY = 1.0  # Delay between requests (seconds)
-REQUEST_TIMEOUT = 30  # Request timeout (seconds)
-MAX_RETRIES = 3
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+REQUEST_DELAY = float(os.getenv("REQUEST_DELAY", "1.0"))  # Delay between requests (seconds)
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))  # Request timeout (seconds)
+MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
+USER_AGENT = os.getenv(
+    "USER_AGENT",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+
+# Crawling behavior
+MAX_THREADS = int(os.getenv("MAX_THREADS", "0")) or None  # 0 means unlimited
+MAX_PAGES = int(os.getenv("MAX_PAGES", "0")) or None  # 0 means unlimited
+LIST_ONLY = os.getenv("LIST_ONLY", "false").lower() == "true"  # Only crawl list, not details
+EXPORT_LLM = os.getenv("EXPORT_LLM", "false").lower() == "true"  # Export for LLM after crawling
 
 # Output settings
-OUTPUT_FORMAT = "json"  # json or txt
-OUTPUT_FILE = DATA_DIR / "shopify_community_threads.json"
+OUTPUT_FORMAT = os.getenv("OUTPUT_FORMAT", "json")  # json or txt
+OUTPUT_FILE = os.getenv("OUTPUT_FILE", str(DATA_DIR / "shopify_community_threads.json"))
 
 # Logging settings
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")

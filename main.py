@@ -1,115 +1,51 @@
 """
 Main script for Shopify Community Crawler
+All configuration is loaded from .env file
 """
-import argparse
 import sys
 from pathlib import Path
 from src.crawler import ShopifyCommunityCrawler
 from src.storage import DataStorage
 from src.logger import setup_logger
-from config.config import FULL_URL
+from config.config import (
+    FULL_URL, MAX_THREADS, MAX_PAGES, LIST_ONLY, EXPORT_LLM,
+    OUTPUT_FORMAT, OUTPUT_FILE
+)
 
 logger = setup_logger(__name__)
 
 
 def main():
     """Main entry point for the crawler"""
-    parser = argparse.ArgumentParser(
-        description='Crawl Shopify Community forum threads',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Crawl all threads (default)
-  python main.py
-  
-  # Crawl maximum 50 threads
-  python main.py --max-threads 50
-  
-  # Crawl only first 3 pages of thread list
-  python main.py --max-pages 3
-  
-  # Specify custom output file
-  python main.py --output data/custom_output.json
-  
-  # Export for LLM after crawling
-  python main.py --export-llm
-        """
-    )
-    
-    parser.add_argument(
-        '--url',
-        type=str,
-        default=FULL_URL,
-        help=f'URL to start crawling from (default: {FULL_URL})'
-    )
-    
-    parser.add_argument(
-        '--max-threads',
-        type=int,
-        default=None,
-        help='Maximum number of threads to crawl (default: all)'
-    )
-    
-    parser.add_argument(
-        '--max-pages',
-        type=int,
-        default=None,
-        help='Maximum number of list pages to crawl (default: all)'
-    )
-    
-    parser.add_argument(
-        '--output',
-        type=str,
-        default=None,
-        help='Output file path (default: data/shopify_community_threads.json)'
-    )
-    
-    parser.add_argument(
-        '--format',
-        type=str,
-        choices=['json', 'txt'],
-        default='json',
-        help='Output format (default: json)'
-    )
-    
-    parser.add_argument(
-        '--export-llm',
-        action='store_true',
-        help='Export data in LLM-optimized format after crawling'
-    )
-    
-    parser.add_argument(
-        '--list-only',
-        action='store_true',
-        help='Only crawl thread list, not full thread content'
-    )
-    
-    args = parser.parse_args()
-    
     try:
         logger.info("=" * 80)
         logger.info("Shopify Community Crawler - Starting")
         logger.info("=" * 80)
+        logger.info(f"Target URL: {FULL_URL}")
+        logger.info(f"Max threads: {MAX_THREADS or 'Unlimited'}")
+        logger.info(f"Max pages: {MAX_PAGES or 'Unlimited'}")
+        logger.info(f"List only: {LIST_ONLY}")
+        logger.info("=" * 80)
         
         # Initialize crawler
-        crawler = ShopifyCommunityCrawler(base_url=args.url)
+        crawler = ShopifyCommunityCrawler(base_url=FULL_URL)
         
         # Initialize storage
-        output_file = Path(args.output) if args.output else None
-        storage = DataStorage(output_file=output_file, output_format=args.format)
+        output_file = Path(OUTPUT_FILE)
+        storage = DataStorage(output_file=output_file, output_format=OUTPUT_FORMAT)
         
         # Crawl data
-        if args.list_only:
+        if LIST_ONLY:
             logger.info("Crawling thread list only...")
             threads = crawler.crawl_thread_list(
-                start_url=args.url,
-                max_pages=args.max_pages
+                start_url=FULL_URL,
+                max_pages=MAX_PAGES
             )
         else:
             logger.info("Crawling full thread content...")
             threads = crawler.crawl_all_threads(
-                max_threads=args.max_threads,
-                max_pages=args.max_pages
+                max_threads=MAX_THREADS,
+                max_pages=MAX_PAGES
             )
         
         if not threads:
@@ -125,7 +61,7 @@ Examples:
             return 1
         
         # Export for LLM if requested
-        if args.export_llm:
+        if EXPORT_LLM:
             logger.info("Exporting data for LLM analysis...")
             storage.export_for_llm()
         
