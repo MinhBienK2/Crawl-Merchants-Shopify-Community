@@ -315,7 +315,7 @@ class ShopifyCommunityCrawler:
             logger.debug(f"Thread already crawled: {thread_url}")
             return None
         
-        logger.info(f"Crawling thread: {thread_url}")
+        logger.info(f"Crawling thread detail: {thread_url}")
         
         # Try regular HTTP request first (faster, no Selenium needed)
         html = self._make_request(thread_url)
