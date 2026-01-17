@@ -48,8 +48,6 @@ class ShopifyCommunityParser:
                 thread_elements = soup.select('tbody tr') or \
                                 soup.select('.topic-list-item')
             
-            logger.info(f"Found {len(thread_elements)} thread elements")
-            
             for element in thread_elements:
                 thread_data = self._extract_thread_info(element)
                 if thread_data:
@@ -289,7 +287,6 @@ class ShopifyCommunityParser:
                         if isinstance(json_data, dict):
                             for key, value in json_data.items():
                                 preloaded_data[key] = value
-                            logger.info(f"Extracted preloaded data from div#data-preloaded: {len(json_data)} keys")
                         else:
                             logger.warning(f"Expected dict from div#data-preloaded, got {type(json_data)}")
                     except json.JSONDecodeError as e:
@@ -374,8 +371,6 @@ class ShopifyCommunityParser:
             
             thread_info['posts'] = posts
             thread_info['replies'] = len(posts) - 1 if posts else 0  # Exclude OP
-            
-            logger.info(f"Parsed thread detail from preloaded data: {thread_info.get('title', 'Unknown')} with {len(posts)} posts")
             
             return thread_info
             
