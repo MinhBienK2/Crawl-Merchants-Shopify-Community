@@ -15,7 +15,7 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
 from config.config import (
     REQUEST_DELAY, REQUEST_TIMEOUT, MAX_RETRIES, USER_AGENT, FULL_URL,
-    USE_BROWSER, BROWSER_HEADLESS, BROWSER_WAIT_TIME, BROWSER_IMPLICIT_WAIT
+    BROWSER_HEADLESS, BROWSER_WAIT_TIME, BROWSER_IMPLICIT_WAIT
 )
 from src.parser import ShopifyCommunityParser
 from src.logger import setup_logger
@@ -37,9 +37,7 @@ class ShopifyCommunityCrawler:
         self.parser = ShopifyCommunityParser("https://community.shopify.com")
         self.session = self._create_session()
         self.crawled_urls = set()
-        self.driver = None
-        if USE_BROWSER:
-            self.driver = self._create_browser()
+        self.driver = self._create_browser()
     
     def _create_session(self) -> requests.Session:
         """
@@ -142,6 +140,61 @@ class ShopifyCommunityCrawler:
                     
                 except TimeoutException as e:
                     logger.warning(f"Page load timeout for {url}: {e}, but continuing...")
+
+                print("\n--- Bắt đầu scroll ---")
+                # Selector cho posts với virtualization
+                post_selector = 'article[data-post-id]'
+                collected_post_ids = set()
+                scroll_pause_time = 2.0
+                max_scrolls = 30
+                no_new_posts_count = 0
+                max_no_new_posts = 3  # Dừng sau 3 lần scroll không có post mới
+                
+                for scroll_attempt in range(max_scrolls):
+                    # Thu thập posts hiện có trong DOM
+                    posts = self.driver.find_elements(By.CSS_SELECTOR, post_selector)
+                    new_posts_found = 0
+                    
+                    for post in posts:
+                        try:
+                            post_id = post.get_attribute('data-post-id')
+                            if post_id and post_id not in collected_post_ids:
+                                collected_post_ids.add(post_id)
+                                new_posts_found += 1
+                        except Exception as e:
+                            logger.debug(f"Error getting post_id: {e}")
+                    
+                    if new_posts_found > 0:
+                        print(f"Scroll {scroll_attempt + 1}: Tìm thấy {new_posts_found} posts mới (Tổng: {len(collected_post_ids)} posts)")
+                        no_new_posts_count = 0
+                    else:
+                        no_new_posts_count += 1
+                        if no_new_posts_count >= max_no_new_posts:
+                            print(f"Không còn posts mới sau {max_no_new_posts} lần scroll. Dừng scroll.")
+                            break
+                    
+                    # Scroll xuống một đoạn
+                    scroll_amount = 800  # Pixels
+                    self.driver.execute_script(f"window.scrollBy(0, {scroll_amount});")
+                    time.sleep(scroll_pause_time)
+                    
+                    # Kiểm tra xem đã scroll đến cuối chưa
+                    scroll_position = self.driver.execute_script("return window.pageYOffset;")
+                    page_height = self.driver.execute_script("return document.body.scrollHeight;")
+                    window_height = self.driver.execute_script("return window.innerHeight;")
+                    
+                    if scroll_position + window_height >= page_height - 100:
+                        # Có thể đã đến cuối, đợi thêm một chút để load content mới
+                        time.sleep(scroll_pause_time)
+                        # Kiểm tra lại xem có content mới không
+                        new_page_height = self.driver.execute_script("return document.body.scrollHeight;")
+                        if new_page_height == page_height:
+                            # Không có content mới, có thể đã đến cuối thực sự
+                            if no_new_posts_count >= max_no_new_posts - 1:
+                                break
+                
+                print(f"\n--- Hoàn thành scroll --- Tổng thu thập: {len(collected_post_ids)} posts")
+
                 
                 # Get the page source after JavaScript execution
                 html = self.driver.page_source
@@ -250,7 +303,7 @@ class ShopifyCommunityCrawler:
     
     def crawl_thread_detail(self, thread_url: str) -> Optional[Dict]:
         """
-        Crawl detailed content of a single thread (supports SPA)
+        Crawl detailed content of a single thread (supports SPA and preloaded data)
         
         Args:
             thread_url: URL of the thread to crawl
@@ -264,17 +317,37 @@ class ShopifyCommunityCrawler:
         
         logger.info(f"Crawling thread: {thread_url}")
         
-        # Use SPA method if browser is available, otherwise fallback to regular request
-        if USE_BROWSER and self.driver:
-            html = self._make_request_spa(thread_url)
-        else:
-            html = self._make_request(thread_url)
+        # Try regular HTTP request first (faster, no Selenium needed)
+        html = self._make_request(thread_url)
         
         if not html:
             logger.error(f"Failed to fetch thread: {thread_url}")
             return None
         
-        thread_data = self.parser.parse_thread_detail(html, thread_url)
+        # Try to parse from preloaded data first (faster, no JavaScript needed)
+        thread_data = self.parser.parse_thread_detail_from_preloaded(html, thread_url)
+        
+        if not thread_data:
+            # Fallback to SPA parsing if preloaded data not found
+            logger.info(f"Preloaded data not found, trying SPA parsing for: {thread_url}")
+            html = self._make_request_spa(thread_url)
+            
+            if not html:
+                logger.error(f"Failed to fetch thread with SPA: {thread_url}")
+                return None
+            
+            # Try preloaded data again from SPA response
+            thread_data = self.parser.parse_thread_detail_from_preloaded(html, thread_url)
+            
+            # If still no preloaded data, fallback to HTML parsing
+            if not thread_data:
+                logger.info(f"Falling back to HTML parsing for: {thread_url}")
+                thread_data = self.parser.parse_thread_detail(html, thread_url)
+        
+        if not thread_data:
+            logger.error(f"Failed to parse thread data: {thread_url}")
+            return None
+        
         self.crawled_urls.add(thread_url)
         
         # Check for pagination in thread (multiple pages of posts)
@@ -283,14 +356,15 @@ class ShopifyCommunityCrawler:
             logger.info(f"Thread has multiple pages, crawling next page: {next_page}")
             time.sleep(REQUEST_DELAY)
             
-            # Use SPA method for next page too
-            if USE_BROWSER and self.driver:
+            next_html = self._make_request(next_page)
+            if not next_html:
                 next_html = self._make_request_spa(next_page)
-            else:
-                next_html = self._make_request(next_page)
             
             if next_html:
-                next_page_data = self.parser.parse_thread_detail(next_html, next_page)
+                next_page_data = self.parser.parse_thread_detail_from_preloaded(next_html, next_page)
+                if not next_page_data:
+                    next_page_data = self.parser.parse_thread_detail(next_html, next_page)
+                
                 if next_page_data and 'posts' in next_page_data:
                     thread_data['posts'].extend(next_page_data['posts'])
                     self.crawled_urls.add(next_page)
