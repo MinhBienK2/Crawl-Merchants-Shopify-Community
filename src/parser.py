@@ -373,7 +373,6 @@ class ShopifyCommunityParser:
             thread_info['replies'] = len(posts) - 1 if posts else 0  # Exclude OP
             
             logger.info(f"Length of posts: {len(posts)}")
-            
             return thread_info
             
         except Exception as e:

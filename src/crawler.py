@@ -277,7 +277,6 @@ class ShopifyCommunityCrawler:
                 break
             
             page_count += 1
-            logger.info(f"Crawling page {page_count}: {current_url}")
             
             html = self._make_request(current_url)
             if not html:
@@ -287,7 +286,6 @@ class ShopifyCommunityCrawler:
             # Parse threads from current page
             threads = self.parser.parse_thread_list(html)
             all_threads.extend(threads)
-            logger.info(f"Found {len(threads)} threads on page {page_count}")
             
             # Find next page
             next_url = self.parser.find_next_page_url(html)
